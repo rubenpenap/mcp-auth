@@ -1,41 +1,20 @@
-# Authenticate Header
+# Auth Params
 
-<EpicVideo url="https://www.epicai.pro/workshops/day-7-8-mcp-auth/authenticate-header-0n13b" />
+<EpicVideo url="https://www.epicai.pro/workshops/day-7-8-mcp-auth/auth-params-vilat" />
 
-👨‍💼 In EpicMe, the `Authorization` header is the gatekeeper for every journal entry. Its job is simple but critical: make sure that only requests with valid credentials can access or change journal data. If a request doesn't include this header, it shouldn't get through—no exceptions. Once the client has an auth token, it'll send that token in the `Authorization` header. If that header doesn't exist, then we know they don't have a token and shouldn't be able to access our server.
+👨‍💼 In EpicMe, when a user tries to access a protected journal entry, it's not enough to simply block them. We need to let them know what to do about it. If a request is missing the right credentials, the server should respond with a `WWW-Authenticate` header that includes extra details, called auth params, so the client understands what went wrong and how to fix it.
 
-But we can help them out by telling them what they need to do to get access. This is where the `WWW-Authenticate` header comes in. It tells the client what kind of authentication is required.
+For example, if a robot tries to fetch `/api/lemonade` without the right credentials, the response should include a realm and a resource_metadata parameter:
 
-For example, if someone tries to fetch `/api/secret-sandwich-recipes` without authenticating, the server should respond with a clear message and a `WWW-Authenticate` header:
-
-```ts
-const hasToken = request.headers.get('authorization')
-if (!hasToken) {
-	return new Response('Unauthorized', {
-		status: 401,
-		headers: {
-			'WWW-Authenticate': 'Bearer',
-		},
-	})
-}
+```
+WWW-Authenticate: Bearer realm="EpicMe", resource_metadata="https://lemonade-stand.example.com/.well-known/oauth-protected-resource/mcp"
 ```
 
-This check is the first and most basic requirement for a secure journal app. The `WWW-Authenticate` header in the response tells the client what kind of credentials are needed to try again.
+- **realm**: Identifies the protected area (like a journal or a lemonade stand) so clients know which resource needs credentials.
+- **resource_metadata**: A URL pointing to metadata about the protected resource, helping clients discover more about what they're trying to access.
 
-<callout-info>
-	If a request is missing the `Authorization` header, always include the
-	`WWW-Authenticate` header in your 401 response. This helps clients know how to
-	try again.
-</callout-info>
+This helps clients know not just that they're blocked, but also where to look for more information about the protected resource.
 
-Without this check, nothing else about security matters. Make sure every request is challenged at the door.
+For more details, see the [MDN documentation on WWW-Authenticate](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/WWW-Authenticate).
 
-<callout-danger>
-	If you're experiencing issues when clicking "Connenct" in the inspector,
-	double-check the "Authentication" dropdown. Clicking that will show you a UI
-	for custom headers and if there's a custom "Authentication" header, it could
-	be messing with your connection request. Delete that header and the inspector
-	will add the correct "Authorization" header for you automatically.
-</callout-danger>
-
-📜 For more details, see the [MDN documentation on WWW-Authenticate](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/WWW-Authenticate).
+Let's make sure our API gives helpful feedback when things go wrong!
