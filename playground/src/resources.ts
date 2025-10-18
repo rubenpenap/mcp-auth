@@ -8,7 +8,7 @@ export async function initializeResources(agent: EpicMeMCP) {
 		'epicme://users/current',
 		{ description: 'The currently logged in user' },
 		async (uri: URL) => {
-			const user = 'TODO...' // 🐨 get the user from await agent.requireUser()
+			const user = await agent.requireUser()
 			return {
 				contents: [
 					{
