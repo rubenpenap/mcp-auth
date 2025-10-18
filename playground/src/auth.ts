@@ -130,7 +130,7 @@ export async function handleOAuthProtectedResourceRequest(request: Request) {
 	return Response.json({
 		resource: resourceServerUrl.toString(),
 		authorization_servers: [EPIC_ME_AUTH_SERVER_URL],
-		// 🐨 add scopes_supported set to the supported scopes array
+		scopes_supported: supportedScopes,
 	})
 }
 
