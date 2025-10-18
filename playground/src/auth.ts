@@ -65,6 +65,33 @@ export function validateScopes(
 	return scopes.every((scope) => authInfo.scopes.includes(scope))
 }
 
+// 🧝‍♀️ I gave you this solution because it's hard to explain what you should do
+// but should be reasonable to understand what's going on.
+// 🦉 Basically this is an array of all combinations of scopes that are valid.
+// it just so happens in our server all they need is a single scope, but in some
+// cases you may need more than one scope.
+const minimalValidScopeCombinations: Array<Array<SupportedScopes>> = [
+	['user:read'],
+	['entries:read'],
+	['entries:write'],
+	['tags:read'],
+	['tags:write'],
+]
+
+// 🧝‍♀️ I gave this one too you as well. Basically it just returns true if the
+// authInfo.scopes includes any valid combination of scopes.
+export function hasSufficientScope(authInfo: AuthInfo) {
+	return minimalValidScopeCombinations.some((scopes) =>
+		scopes.every((scope) => authInfo.scopes.includes(scope)),
+	)
+}
+
+// 🐨 create a handleInsufficientScope function that returns a 403 response with
+// the appropriate WWW-Authenticate header.
+// The header should be similar to the handleUnauthorized one below. It needs
+// the following auth params: error and error_description
+// 💰 use the minimalValidScopeCombinations array to create the error_description to explain the valid combinations of scopes
+
 export function handleUnauthorized(request: Request) {
 	const hasAuthHeader = request.headers.has('authorization')
 
