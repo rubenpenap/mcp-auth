@@ -32,7 +32,7 @@ export async function initializeTools(agent: EpicMeMCP) {
 			outputSchema: { user: userSchema },
 		},
 		async () => {
-			const user = 'TODO...' // 🐨 get the user from await agent.requireUser()
+			const user = await agent.requireUser()
 			const structuredContent = { user }
 			return {
 				structuredContent,
