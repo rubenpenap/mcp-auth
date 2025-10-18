@@ -42,11 +42,17 @@ export async function resolveAuthInfo(
 }
 
 export function handleUnauthorized(request: Request) {
+	// 🐨 make a "hasAuthHeader" variable that's true if the request has an Authorization header
+
 	const url = new URL('/.well-known/oauth-protected-resource/mcp', request.url)
 
 	return new Response('Unauthorized', {
 		status: 401,
 		headers: {
+			// 🐨 if the request has an Authorization header, add an error auth param
+			// 💰 `error="invalid_token"`
+			// 🐨 also, if we have an Authorization header, add an error_description auth param
+			// explaining that the token is invalid or expired
 			'WWW-Authenticate': `Bearer realm="EpicMe", resource_metadata=${url.toString()}`,
 		},
 	})
