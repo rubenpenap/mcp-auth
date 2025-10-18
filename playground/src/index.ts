@@ -1,9 +1,9 @@
 import { type DBClient } from '@epic-web/epicme-db-client'
+import { invariant } from '@epic-web/invariant'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { McpAgent } from 'agents/mcp'
 import {
-	// 💰 you'll need this:
-	// type AuthInfo,
+	type AuthInfo,
 	handleOAuthAuthorizationServerRequest,
 	handleOAuthProtectedResourceRequest,
 	handleUnauthorized,
@@ -16,11 +16,9 @@ import { initializeTools } from './tools.ts'
 import { withCors } from './utils.ts'
 
 type State = {}
-// 🐨 add an authToken property set to the AuthToken type to the Props object
-type Props = {}
+type Props = { authInfo: AuthInfo }
 
-// 🐨 add the State and Props types to the generic after Env here:
-export class EpicMeMCP extends McpAgent<Env> {
+export class EpicMeMCP extends McpAgent<Env, State, Props> {
 	db!: DBClient
 	server = new McpServer(
 		{
@@ -47,13 +45,17 @@ You can also help users add tags to their entries and get all tags for an entry.
 	)
 
 	async init() {
-		// 🐨 pass this.props?.authToken.token to getClient
-		// 💯 throw an error if there's no token (we shouldn't get to this point without one, you can use invariant)
-		// 💯 as an extra bonus, make a `requireAuthInfo` utility method and use that instead
-		this.db = getClient()
+		this.db = getClient(this.requireAuthInfo().token)
+
 		await initializeTools(this)
 		await initializeResources(this)
 		await initializePrompts(this)
+	}
+
+	requireAuthInfo() {
+		const { authInfo } = this.props ?? {}
+		invariant(authInfo, 'Auth info not found')
+		return authInfo
 	}
 }
 
@@ -90,7 +92,7 @@ export default {
 					binding: 'EPIC_ME_MCP_OBJECT',
 				})
 
-				// 🐨 set ctx.props.authInfo to the authInfo object
+				ctx.props.authInfo = authInfo
 				return mcp.fetch(request, env, ctx)
 			}
 
