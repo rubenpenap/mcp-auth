@@ -30,7 +30,7 @@ test(`tools can be called with a valid token`, async () => {
 			id: crypto.randomUUID(),
 			method: 'tools/call',
 			params: {
-				name: 'list_entries',
+				name: 'whoami',
 				arguments: {},
 			},
 		}),
@@ -38,15 +38,20 @@ test(`tools can be called with a valid token`, async () => {
 	const toolResponseData = await handleStreamableResponse(toolResponse)
 	expect(
 		toolResponseData,
-		'🚨 the list_entries tool should be available with a valid token',
+		'🚨 the whoami tool should be return the user info',
 	).toEqual([
 		{
 			id: expect.any(String),
 			jsonrpc: '2.0',
 			result: expect.objectContaining({
-				content: expect.arrayContaining([
-					{ type: 'text', text: expect.stringMatching(/Found \d+ entries\./) },
-				]),
+				structuredContent: {
+					user: {
+						createdAt: expect.any(Number),
+						email: expect.any(String),
+						id: expect.any(Number),
+						updatedAt: expect.any(Number),
+					},
+				},
 			}),
 		},
 	])
