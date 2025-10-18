@@ -49,6 +49,22 @@ export async function resolveAuthInfo(
 	}
 }
 
+const supportedScopes = [
+	'user:read',
+	'entries:read',
+	'entries:write',
+	'tags:read',
+	'tags:write',
+] as const
+export type SupportedScopes = (typeof supportedScopes)[number]
+
+export function validateScopes(
+	authInfo: AuthInfo,
+	scopes: Array<SupportedScopes>,
+) {
+	return scopes.every((scope) => authInfo.scopes.includes(scope))
+}
+
 export function handleUnauthorized(request: Request) {
 	const hasAuthHeader = request.headers.has('authorization')
 

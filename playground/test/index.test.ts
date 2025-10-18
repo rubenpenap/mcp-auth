@@ -9,15 +9,16 @@ const mcpServerPort = inject('mcpServerPort')
 const EPIC_ME_AUTH_SERVER_URL = 'http://localhost:7788'
 const mcpServerUrl = `http://localhost:${mcpServerPort}`
 
-test(`tools can be called with a valid token`, async () => {
-	const tokenResult = await getAuthToken()
+test(`prompts are not visible if the user does not have the required scopes`, async () => {
+	const tokenResult = await getAuthToken({ scopes: [] })
 	const response = await initialize(tokenResult.access_token)
 	const sessionId = response.headers.get('mcp-session-id')
 	invariant(
 		sessionId,
 		'🚨 initialization response should have an MCP session ID header',
 	)
-	const toolResponse = await fetch(`${mcpServerUrl}/mcp`, {
+	// list prompts
+	const promptsResponse = await fetch(`${mcpServerUrl}/mcp`, {
 		method: 'POST',
 		headers: {
 			'mcp-session-id': sessionId,
@@ -28,36 +29,76 @@ test(`tools can be called with a valid token`, async () => {
 		body: JSON.stringify({
 			jsonrpc: '2.0',
 			id: crypto.randomUUID(),
-			method: 'tools/call',
-			params: {
-				name: 'whoami',
-				arguments: {},
-			},
+			method: 'prompts/list',
 		}),
 	})
-	const toolResponseData = await handleStreamableResponse(toolResponse)
+	const promptsResponseData = await handleStreamableResponse(promptsResponse)
 	expect(
-		toolResponseData,
-		'🚨 the whoami tool should be return the user info',
+		promptsResponseData,
+		'🚨 there should be no prompts available',
 	).toEqual([
 		{
+			error: {
+				code: -32601,
+				message: 'Method not found',
+			},
 			id: expect.any(String),
 			jsonrpc: '2.0',
-			result: expect.objectContaining({
-				structuredContent: {
-					user: {
-						createdAt: expect.any(Number),
-						email: expect.any(String),
-						id: expect.any(Number),
-						updatedAt: expect.any(Number),
-					},
-				},
-			}),
 		},
 	])
 })
 
-async function getAuthToken() {
+test(`prompts are visible if the user has the required scopes`, async () => {
+	const tokenResult = await getAuthToken({
+		scopes: ['entries:read', 'tags:read'],
+	})
+	const response = await initialize(tokenResult.access_token)
+	const sessionId = response.headers.get('mcp-session-id')
+	invariant(
+		sessionId,
+		'🚨 initialization response should have an MCP session ID header',
+	)
+	const promptsResponse = await fetch(`${mcpServerUrl}/mcp`, {
+		method: 'POST',
+		headers: {
+			'mcp-session-id': sessionId,
+			accept: 'application/json, text/event-stream',
+			'Content-Type': 'application/json',
+			Authorization: `Bearer ${tokenResult.access_token}`,
+		},
+		body: JSON.stringify({
+			jsonrpc: '2.0',
+			id: crypto.randomUUID(),
+			method: 'prompts/list',
+		}),
+	})
+	const promptsResponseData = await handleStreamableResponse(promptsResponse)
+	expect(
+		promptsResponseData,
+		'🚨 the suggest_tags prompt should be available with entries:read and tags:read scopes',
+	).toEqual([
+		{
+			id: expect.any(String),
+			jsonrpc: '2.0',
+			result: {
+				prompts: [
+					expect.objectContaining({
+						name: 'suggest_tags',
+					}),
+				],
+			},
+		},
+	])
+})
+
+type Scopes =
+	| 'user:read'
+	| 'user:write'
+	| 'entries:read'
+	| 'entries:write'
+	| 'tags:read'
+	| 'tags:write'
+async function getAuthToken({ scopes }: { scopes: Array<Scopes> }) {
 	const redirectUri = `https://example.com/test-mcp-client`
 	const clientRegistrationResponse = await fetch(
 		`${EPIC_ME_AUTH_SERVER_URL}/oauth/register`,
@@ -96,7 +137,7 @@ async function getAuthToken() {
 	testAuthUrl.searchParams.set('response_type', 'code')
 	testAuthUrl.searchParams.set('code_challenge', codeChallenge)
 	testAuthUrl.searchParams.set('code_challenge_method', codeChallengeMethod)
-	testAuthUrl.searchParams.set('scope', '')
+	testAuthUrl.searchParams.set('scope', scopes.join(' '))
 	testAuthUrl.searchParams.set('state', state)
 
 	const authCodeResponse = await fetch(testAuthUrl.toString())

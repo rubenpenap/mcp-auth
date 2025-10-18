@@ -4,10 +4,12 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { McpAgent } from 'agents/mcp'
 import {
 	type AuthInfo,
+	type SupportedScopes,
 	handleOAuthAuthorizationServerRequest,
 	handleOAuthProtectedResourceRequest,
 	handleUnauthorized,
 	resolveAuthInfo,
+	validateScopes,
 } from './auth.ts'
 import { getClient } from './client.ts'
 import { initializePrompts } from './prompts.ts'
@@ -63,6 +65,10 @@ You can also help users add tags to their entries and get all tags for an entry.
 		invariant(user, 'User not found')
 		return user
 	}
+
+	hasScope(...scopes: Array<SupportedScopes>) {
+		return validateScopes(this.requireAuthInfo(), scopes)
+	}
 }
 
 export default {
@@ -92,6 +98,7 @@ export default {
 				const authInfo = await resolveAuthInfo(
 					request.headers.get('authorization'),
 				)
+				console.log(authInfo)
 				if (!authInfo) return handleUnauthorized(request)
 
 				const mcp = EpicMeMCP.serve('/mcp', {

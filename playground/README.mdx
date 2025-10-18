@@ -1,11 +1,49 @@
-# Require User
+# Check Scopes
 
-<EpicVideo url="https://www.epicai.pro/workshops/day-7-8-mcp-auth/require-user-adoka" />
+<EpicVideo url="https://www.epicai.pro/workshops/day-7-8-mcp-auth/check-scopes-xkjqu" />
 
-👨‍💼 Now that we have the client authenticated with the token, let's make a utility to get the user and also provide tools and resources to retrieve the user data.
+👨‍💼 We're going to start adding more fine-grained control to what our MCP server can do by adding scopes. Our authorization server already supports scopes, and it makes no sense for the MCP server to show tools, resources, or prompts that the user doesn't have permission to use anyway.
 
-🧝‍♀️ I created a resource and a tool for you, all you need to do is implement the `requireUser` utility then use that in the tool and resource. Feel free to <PrevDiffLink>check out my changes</PrevDiffLink> if you want.
+This is where OAuth scopes come in. They give us fine-grained control over what authenticated users can access.
 
-👨‍💼 Great! Ok, so the goal is to make user data accessible throughout our MCP server while maintaining security and providing a seamless, personalized experience for every journaling session.
+Let's look at an example of how this works in a music streaming app:
 
-Now, implement the `requireUser` utility so our tools and resources can provide users with their personalized journaling experience.
+```ts
+// Define what scopes are available in our app
+const musicScopes = [
+	'playlist:read', // View playlists
+	'playlist:write', // Create/edit playlists
+	'songs:read', // Search and play songs
+	'profile:read', // View user profile
+] as const
+
+// Check if user has permission to create playlists
+function hasScope(userScopes: Array<string>) {
+	return userScopes.includes('playlist:write')
+}
+
+// Only show "Create Playlist" if user has permission
+if (hasScope(authInfo.scopes)) {
+	// show create playlist functionality
+}
+```
+
+To make this work in our EpicMe journaling app, we need to create scope validation utilities. These will help us check what permissions users have and ensure they can only access the features they're authorized for.
+
+<callout-info>
+	🧝‍♀️ I added `scopes` to the `whoami` tool so you can easily see what
+	permissions are available when testing your implementation.
+</callout-info>
+
+Once you have the scope validation utilities in place, you'll also need to add a convenient `hasScope` method to the `EpicMeMCP` class that makes it easy to check permissions throughout your app:
+
+This approach means users will only see the tools and features they're actually authorized to use, creating a smooth and intuitive experience that matches their permission level.
+
+📜 For more details on OAuth scopes and how they work in MCP servers, see the [OAuth 2.0 Scopes RFC](https://tools.ietf.org/html/rfc6749#section-3.3) and the [MCP Authentication Specification](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization).
+
+<callout-danger>
+	At the time of this writing, there is a bug in the Cloudflare `McpAgent` that
+	prevents client capabilities from being provided properly, as a result,
+	sampling requests will not be made. Add `console.log`s to check if your logic
+	is working.
+</callout-danger>

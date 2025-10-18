@@ -10,6 +10,15 @@ const resultSchema = z.object({
 })
 
 export async function suggestTagsSampling(agent: EpicMeMCP, entryId: number) {
+	if (
+		!agent.hasScope('entries:read', 'tags:read', 'entries:write', 'tags:write')
+	) {
+		console.error(
+			'Client does not sufficient scopes to suggest tags, skipping sampling request',
+		)
+		return
+	}
+
 	const clientCapabilities = agent.server.server.getClientCapabilities()
 	if (!clientCapabilities?.sampling) {
 		console.error('Client does not support sampling, skipping sampling request')

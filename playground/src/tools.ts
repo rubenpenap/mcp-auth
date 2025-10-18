@@ -29,11 +29,14 @@ export async function initializeTools(agent: EpicMeMCP) {
 				readOnlyHint: true,
 				openWorldHint: false,
 			},
-			outputSchema: { user: userSchema },
+			outputSchema: { user: userSchema, scopes: z.array(z.string()) },
 		},
 		async () => {
 			const user = await agent.requireUser()
-			const structuredContent = { user }
+			const structuredContent = {
+				user,
+				scopes: agent.requireAuthInfo().scopes,
+			}
 			return {
 				structuredContent,
 				content: [createText(structuredContent)],
