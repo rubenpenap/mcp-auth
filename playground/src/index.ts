@@ -5,13 +5,11 @@ import { McpAgent } from 'agents/mcp'
 import {
 	type AuthInfo,
 	type SupportedScopes,
-	// 💰 you'll want this:
-	// handleInsufficientScope,
+	handleInsufficientScope,
 	handleOAuthAuthorizationServerRequest,
 	handleOAuthProtectedResourceRequest,
 	handleUnauthorized,
-	// 💰 you'll want this:
-	// hasSufficientScope,
+	hasSufficientScope,
 	resolveAuthInfo,
 	validateScopes,
 } from './auth.ts'
@@ -104,8 +102,9 @@ export default {
 				)
 				if (!authInfo) return handleUnauthorized(request)
 
-				// 🐨 check whether the authInfo includes all the required scopes
-				// 🐨 if it doesn't, call and return the result of handleInsufficientScope()
+				if (!hasSufficientScope(authInfo)) {
+					return handleInsufficientScope()
+				}
 
 				const mcp = EpicMeMCP.serve('/mcp', {
 					binding: 'EPIC_ME_MCP_OBJECT',
