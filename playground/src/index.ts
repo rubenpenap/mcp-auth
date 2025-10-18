@@ -58,12 +58,11 @@ You can also help users add tags to their entries and get all tags for an entry.
 		return authInfo
 	}
 
-	// 🐨 create an async requireUser function
-	//   🐨 get the user from await this.db.getUser()
-	//   🐨 the user should absolutely exist by this point,
-	//      but just in case (maybe they were deleted from the db?) throw an error if they don't
-	//   🐨 return the user
-	// 💯 use invariant instead of throwing a manual error
+	async requireUser() {
+		const user = await this.db.getUser()
+		invariant(user, 'User not found')
+		return user
+	}
 }
 
 export default {
