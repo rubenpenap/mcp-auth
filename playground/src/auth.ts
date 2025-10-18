@@ -4,13 +4,17 @@ import { EPIC_ME_AUTH_SERVER_URL } from './client.ts'
 
 export type AuthInfo = SDKAuthInfo & { extra: { userId: string } }
 
-// 💯 as a bonus, you could make this schema a discriminated union based on the "active" property
-const introspectResponseSchema = z.object({
-	// 🐨 add an "active" property to the schema that's a boolean
-	client_id: z.string(),
-	scope: z.string(),
-	sub: z.string(),
-})
+const introspectResponseSchema = z.discriminatedUnion('active', [
+	z.object({
+		active: z.literal(true),
+		client_id: z.string(),
+		scope: z.string(),
+		sub: z.string(),
+	}),
+	z.object({
+		active: z.literal(false),
+	}),
+])
 
 export async function resolveAuthInfo(
 	authHeader: string | null,
@@ -33,7 +37,7 @@ export async function resolveAuthInfo(
 
 	const data = introspectResponseSchema.parse(rawData)
 
-	// 🐨 if the "active" property is false, return null
+	if (!data.active) return null
 
 	const { sub, client_id, scope } = data
 
