@@ -5,6 +5,8 @@ import {
 	handleOAuthAuthorizationServerRequest,
 	handleOAuthProtectedResourceRequest,
 	handleUnauthorized,
+	// 💰 you'll need this:
+	// resolveAuthInfo,
 } from './auth.ts'
 import { getClient } from './client.ts'
 import { initializePrompts } from './prompts.ts'

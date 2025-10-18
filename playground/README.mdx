@@ -1,20 +1,77 @@
-# Auth Params
+# Introspect
 
-<EpicVideo url="https://www.epicai.pro/workshops/day-7-8-mcp-auth/auth-params-vilat" />
+<EpicVideo url="https://www.epicai.pro/workshops/day-7-8-mcp-auth/introspect-pjgp6" />
 
-👨‍💼 In EpicMe, when a user tries to access a protected journal entry, it's not enough to simply block them. We need to let them know what to do about it. If a request is missing the right credentials, the server should respond with a `WWW-Authenticate` header that includes extra details, called auth params, so the client understands what went wrong and how to fix it.
+👨‍💼 Ok, so we've got the user's auth token, but what do we do with it? Our server needs to know:
 
-For example, if a robot tries to fetch `/api/lemonade` without the right credentials, the response should include a realm and a resource_metadata parameter:
+- Is the token valid?
+- Is it still active?
+- Who is this person? (user ID)
+- What permissions do they have? (scopes)
 
+So we need to "introspect" the token to get this information.
+
+```ts
+// When a user makes a request, we need to resolve their token
+const authInfo = await resolveAuthInfo(request.headers.get('authorization'))
+if (!authInfo) {
+	return handleUnauthorized(request)
+}
+
+console.log(`User ${authInfo.extra.userId} from ${authInfo.clientId}`)
+console.log(`Has scopes: ${authInfo.scopes.join(', ')}`)
 ```
-WWW-Authenticate: Bearer realm="EpicMe", resource_metadata="https://lemonade-stand.example.com/.well-known/oauth-protected-resource/mcp"
+
+Auth providers implement this slightly differently, but the core concept is the same: you send the token to the auth server, and it tells you everything you need to know about that token. Some auth providers store their token as a JWT which means the information is contained within the token itself and you don't need to perform a request to the auth server to get the information.
+
+One way or another though, you need to determine whether the token is valid and active.
+
+<callout-info>
+	🔍 Token validation is essential for user-specific features. Without it, you
+	can't personalize the experience or enforce proper permissions.
+</callout-info>
+
+The introspection process involves making a POST request to the auth server's introspection endpoint with the token. The response contains the user ID (`sub`), client ID (`client_id`), and scopes (`scope`) that tell you exactly what this token represents.
+
+```ts
+// Example introspection request
+const validateUrl = new URL('/oauth/introspection', 'https://auth.example.com')
+const resp = await fetch(validateUrl, {
+	method: 'POST',
+	headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+	body: new URLSearchParams({ token }),
+})
+
+const result = await resp.json()
+// result.sub = user ID
+// result.client_id = app the user is using
+// result.scope = space-separated list of permissions
 ```
 
-- **realm**: Identifies the protected area (like a journal or a lemonade stand) so clients know which resource needs credentials.
-- **resource_metadata**: A URL pointing to metadata about the protected resource, helping clients discover more about what they're trying to access.
+<callout-info>
+	🎯 When you're finished with this exercise, the behavior won't change
+	visually. Consider adding a `console.log` to see the introspection results in
+	action!
+</callout-info>
 
-This helps clients know not just that they're blocked, but also where to look for more information about the protected resource.
+```mermaid
+sequenceDiagram
+    MCP Client->>MCP Server: POST /mcp (Authorization: Bearer token)
+    MCP Server->>Auth Server: POST /oauth/introspection (token)
+    alt Token is active
+        Auth Server-->>MCP Server: Returns user info (sub, client_id, scope)
+        MCP Server-->>MCP Client: Processes request with user context
+    else Token is invalid/expired
+        Auth Server-->>MCP Server: Returns error or inactive status
+        MCP Server-->>MCP Client: Returns unauthorized response
+    end
+```
 
-For more details, see the [MDN documentation on WWW-Authenticate](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/WWW-Authenticate).
+<callout-muted>
+	📜 For more details on token introspection, see the [OAuth 2.0 Token
+	Introspection RFC](https://datatracker.ietf.org/doc/html/rfc7662).
+</callout-muted>
 
-Let's make sure our API gives helpful feedback when things go wrong!
+The goal is to transform anonymous tokens into rich user context, enabling personalized experiences and proper permission enforcement.
+
+Now, let's implement the `resolveAuthInfo` function to make this happen!
