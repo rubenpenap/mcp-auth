@@ -1,94 +1,59 @@
-# Token Active
+# Client Token
 
-<EpicVideo url="https://www.epicai.pro/workshops/day-7-8-mcp-auth/token-active-zbbw4" />
+<EpicVideo url="https://www.epicai.pro/workshops/day-7-8-mcp-auth/client-token-st24u" />
 
-👨‍💼 When we introspect an auth token, the introspection endpoint will return whether the token is currently active (because tokens can be revoked or expired) and we need to check for that in our resolution callback.
+👨‍💼 When we make requests using `this.db` (our db client), we need to include the user's authentication token so that the server knows who the user is and what they're allowed to access.
 
-The solution is to always verify that a token is active before trusting any of its claims. OAuth 2.0 introspection responses include an `active` property that tells us exactly this.
-
-It's pretty simple:
+Right now the db client doesn't accept a token, so you need to update it to do so.
 
 ```ts
-const data = await introspectionResopnse.json()
-if (!data.active) {
-	// Token is expired, revoked, or invalid
-	return null
-}
+// Create a client that knows who the user is
+const db = getClient(userOAuthToken)
+const entries = await db.getEntries() // Only gets THIS user's entries
 ```
 
-## Discriminated Unions
-
-🦉 As a bonus in this exercise step you can make the types nicer if you use discriminated unions. When working with responses that can have different shapes based on a property value, TypeScript's discriminated unions are incredibly useful. They let you create types that change based on a specific field, giving you type safety and better IntelliSense.
-
-Here's a simple example of how discriminated unions work:
-
-```ts
-// A discriminated union based on the "status" property
-type ApiResponse =
-	| { status: 'success'; data: Array<string> }
-	| { status: 'error'; message: string }
-
-// TypeScript knows the shape based on the status
-function handleResponse(response: ApiResponse) {
-	if (response.status === 'success') {
-		// TypeScript knows response.data exists here
-		console.log(response.data.length)
-	} else {
-		// TypeScript knows response.message exists here
-		console.log(response.message)
-	}
-}
-```
-
-Here's how you represent that with zod:
-
-```ts
-const introspectResponseSchema = z.discriminatedUnion('status', [
-	z.object({
-		status: z.literal('success'),
-		data: z.array(z.string()),
-	}),
-	z.object({
-		status: z.literal('error'),
-		message: z.string(),
-	}),
-])
-```
-
-In our case, we'll use a discriminated union based on the `active` property to handle both active and inactive token responses safely.
-
-<callout-warning>
-	🎯 When a token is inactive, don't process any of its claims. Return null
-	immediately to prevent unauthorized access.
+<callout-warning class="important">
+	If there's no authentication token, we shouldn't even try to create a database
+	connection. The user needs to be properly authenticated first!
 </callout-warning>
 
 ```mermaid
 sequenceDiagram
-    MCP Client->>MCP Server: POST /mcp (Authorization: Bearer token)
-    MCP Server->>Auth Server: POST /oauth/introspection (token)
-    alt Token is active
-        Auth Server-->>MCP Server: { active: true, sub: "user123", ... }
-        MCP Server-->>MCP Client: Processes request with user context
-    else Token is inactive
-        Auth Server-->>MCP Server: { active: false }
-        MCP Server-->>MCP Client: Returns null (no auth info)
-    end
+    MCP Client->>MCP Server: Requests journal entries
+    MCP Server->>Auth: Validates OAuth token
+    Auth-->>MCP Server: Returns user identity
+    MCP Server->>MCP Server: Create client with token
+    MCP Server->>DB: get entries (with token)
+    DB-->>MCP Server: Returns user's entries only
+    MCP Server-->>MCP Client: Shows personal journal entries
 ```
 
 <callout-muted>
-	📜 For more details on OAuth 2.0 token introspection and the `active`
-	property, see the [OAuth 2.0 Token Introspection
-	RFC](https://datatracker.ietf.org/doc/html/rfc7662).
+	📜 For more details on OAuth tokens and authentication flows, see the [OAuth
+	2.0 specification](https://tools.ietf.org/html/rfc6749).
 </callout-muted>
 
-The goal is to ensure that only active, valid tokens can access our MCP server resources, maintaining security and providing a reliable user experience.
+The tricky part of this is how to get the auth info we get from the request into `EpicMeMCP` (our instance of the `McpAgent`). To do this with Cloudflare, we set the `ctx.props`:
 
-Now, let's implement proper token validation by checking the `active` property!
+```ts lines=1-3,5,15
+type State = {}
+type Props = { greeting: string }
+export class MyMCP extends McpAgent<Env, State, Props> {
+	async init() {
+		console.log(this.props?.greeting)
+	}
+}
 
-<callout-warning>
-	🚨 Note: this is a difficult one to test because you need a token that's
-	expired. As a result the tests will just make sure you didn't regress
-	behavior, but they won't validate you got the `active` check right. Luckily
-	it's pretty simple to know you got it right because it's really only one line
-	of code you need.
-</callout-warning>
+export default {
+	fetch: async (request, env, ctx) => {
+		// ...
+		const url = new URL(request.url)
+		const mcp = MyMCP.serve('/mcp')
+
+		ctx.props.greeting = 'Hello, world!'
+		return mcp.fetch(request, env, ctx)
+	},
+} satisfies EpicMeExportedHandler<Props>
+```
+
+Note, out of an abundance of caution, the types for `this.props` is `Props | undefined`. This means you need to check if it's undefined before using it. I recommend using the `invariant` function to throw an error if it's `undefined` because that should really never happen.

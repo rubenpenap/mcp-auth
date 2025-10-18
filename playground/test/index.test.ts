@@ -1,19 +1,167 @@
+import { invariant } from '@epic-web/invariant'
+import {
+	type JSONRPCMessage,
+	JSONRPCMessageSchema,
+} from '@modelcontextprotocol/sdk/types.js'
 import { test, expect, inject } from 'vitest'
 
 const mcpServerPort = inject('mcpServerPort')
+const EPIC_ME_AUTH_SERVER_URL = 'http://localhost:7788'
 const mcpServerUrl = `http://localhost:${mcpServerPort}`
 
-async function makeInitRequest(accessToken?: string) {
-	const response = await fetch(`${mcpServerUrl}/mcp`, {
+test(`tools can be called with a valid token`, async () => {
+	const tokenResult = await getAuthToken()
+	const response = await initialize(tokenResult.access_token)
+	const sessionId = response.headers.get('mcp-session-id')
+	invariant(
+		sessionId,
+		'🚨 initialization response should have an MCP session ID header',
+	)
+	const toolResponse = await fetch(`${mcpServerUrl}/mcp`, {
 		method: 'POST',
 		headers: {
-			'content-type': 'application/json',
+			'mcp-session-id': sessionId,
 			accept: 'application/json, text/event-stream',
-			...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
+			'Content-Type': 'application/json',
+			Authorization: `Bearer ${tokenResult.access_token}`,
 		},
 		body: JSON.stringify({
 			jsonrpc: '2.0',
-			id: 1,
+			id: crypto.randomUUID(),
+			method: 'tools/call',
+			params: {
+				name: 'list_entries',
+				arguments: {},
+			},
+		}),
+	})
+	const toolResponseData = await handleStreamableResponse(toolResponse)
+	expect(
+		toolResponseData,
+		'🚨 the list_entries tool should be available with a valid token',
+	).toEqual([
+		{
+			id: expect.any(String),
+			jsonrpc: '2.0',
+			result: expect.objectContaining({
+				content: expect.arrayContaining([
+					{ type: 'text', text: expect.stringMatching(/Found \d+ entries\./) },
+				]),
+			}),
+		},
+	])
+})
+
+async function getAuthToken() {
+	const redirectUri = `https://example.com/test-mcp-client`
+	const clientRegistrationResponse = await fetch(
+		`${EPIC_ME_AUTH_SERVER_URL}/oauth/register`,
+		{
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				accept: 'application/json, text/event-stream',
+			},
+			body: JSON.stringify({
+				client_name: 'Test MCP Client',
+				redirect_uris: [redirectUri],
+			}),
+		},
+	)
+
+	expect(
+		clientRegistrationResponse.ok,
+		'🚨 Client registration should succeed',
+	).toBe(true)
+	const clientRegistration =
+		(await clientRegistrationResponse.json()) as ClientRegistration
+	expect(
+		clientRegistration.client_id,
+		'🚨 Client ID should be returned from registration',
+	).toBeTruthy()
+
+	const { codeVerifier, codeChallenge, codeChallengeMethod } =
+		generateCodeChallenge()
+	const state = crypto.randomUUID()
+
+	const testAuthUrl = new URL(`${EPIC_ME_AUTH_SERVER_URL}/test-auth`)
+	// Use the registered client ID instead of the one from the auth URL
+	testAuthUrl.searchParams.set('client_id', clientRegistration.client_id)
+	testAuthUrl.searchParams.set('redirect_uri', redirectUri)
+	testAuthUrl.searchParams.set('response_type', 'code')
+	testAuthUrl.searchParams.set('code_challenge', codeChallenge)
+	testAuthUrl.searchParams.set('code_challenge_method', codeChallengeMethod)
+	testAuthUrl.searchParams.set('scope', '')
+	testAuthUrl.searchParams.set('state', state)
+
+	const authCodeResponse = await fetch(testAuthUrl.toString())
+	expect(authCodeResponse.ok, '🚨 Auth code request should succeed').toBe(true)
+
+	const authResult = (await authCodeResponse.json()) as AuthResult
+	expect(
+		authResult.redirectTo,
+		'🚨 Redirect URL should be returned',
+	).toBeTruthy()
+
+	const redirectUrl = new URL(authResult.redirectTo)
+	const authCode = redirectUrl.searchParams.get('code')
+	const returnedState = redirectUrl.searchParams.get('state')
+
+	expect(
+		authCode,
+		'🚨 Auth code should be present in redirect URL',
+	).toBeTruthy()
+	expect(returnedState, '🚨 State should be returned').toBe(state)
+
+	const tokenParams = new URLSearchParams({
+		grant_type: 'authorization_code',
+		code: authCode!,
+		redirect_uri: redirectUri,
+		client_id: clientRegistration.client_id, // Use registered client ID
+		code_verifier: codeVerifier,
+	})
+
+	// Add client_secret if provided during registration
+	if (clientRegistration.client_secret) {
+		tokenParams.set('client_secret', clientRegistration.client_secret)
+	}
+
+	const tokenResponse = await fetch(`${EPIC_ME_AUTH_SERVER_URL}/oauth/token`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+		body: tokenParams,
+	})
+
+	if (!tokenResponse.ok) {
+		const errorText = await tokenResponse.text()
+		console.error('Token exchange failed:', tokenResponse.status, errorText)
+	}
+
+	expect(tokenResponse.ok, '🚨 Token exchange should succeed').toBe(true)
+	const tokenResult = (await tokenResponse.json()) as TokenResult
+	expect(
+		tokenResult.access_token,
+		'🚨 Access token should be returned',
+	).toBeTruthy()
+	expect(
+		tokenResult.token_type?.toLowerCase(),
+		'🚨 Token type should be Bearer',
+	).toBe('bearer')
+
+	return tokenResult
+}
+
+async function initialize(accessToken: string) {
+	const authTestResponse = await fetch(`${mcpServerUrl}/mcp`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			Accept: 'application/json, text/event-stream',
+			Authorization: `Bearer ${accessToken}`,
+		},
+		body: JSON.stringify({
+			jsonrpc: '2.0',
+			id: crypto.randomUUID(),
 			method: 'initialize',
 			params: {
 				protocolVersion: '2024-11-05',
@@ -26,78 +174,125 @@ async function makeInitRequest(accessToken?: string) {
 		}),
 	})
 
-	return response
+	expect(
+		authTestResponse.status,
+		'🚨 Should not get 401 Unauthorized with valid token',
+	).not.toBe(401)
+	return authTestResponse
 }
 
-test(`MCP server provides specific error messages for invalid tokens`, async () => {
-	// Test that when a request has an authorization header, the server returns
-	// specific error information in the WWW-Authenticate header (step 2 functionality)
+async function handleStreamableResponse(response: Response) {
+	if (response.headers.get('content-type')?.includes('text/event-stream')) {
+		const stream = response.body
+		if (!stream) {
+			throw new Error('No response body available for streaming')
+		}
 
-	// Test 1: Request WITHOUT authorization header (should NOT include error parameters)
-	const noAuthResponse = await makeInitRequest()
-	expect(noAuthResponse.status).toBe(401)
+		const messages: Array<JSONRPCMessage> = []
 
-	const noAuthHeader = noAuthResponse.headers.get('WWW-Authenticate')
-	expect(noAuthHeader).not.toContain('error=')
-	expect(noAuthHeader).not.toContain('error_description=')
+		try {
+			// Create a pipeline: binary stream -> text decoder
+			const reader = stream.pipeThrough(new TextDecoderStream()).getReader()
 
-	// Test 2: Request WITH authorization header (should include error parameters)
-	// We'll use a malformed JSON body to trigger handleUnauthorized without hitting the ZodError
-	const responseWithAuth = await fetch(`${mcpServerUrl}/mcp`, {
-		method: 'POST',
-		headers: {
-			authorization: 'Bearer invalid-token',
-			'content-type': 'application/json',
-		},
-		body: 'invalid-json',
-	})
+			let buffer = ''
+			let messageReceived = false
 
-	expect(responseWithAuth.status).toBe(401)
-	const headerWithAuth = responseWithAuth.headers.get('WWW-Authenticate')
-	expect(headerWithAuth).toContain('error="invalid_token"')
-	expect(headerWithAuth).toContain(
-		'error_description="The access token is invalid or expired"',
+			while (true) {
+				const { value: chunk, done } = await reader.read()
+				if (done) {
+					break
+				}
+
+				buffer += chunk
+
+				// Process complete SSE messages
+				const lines = buffer.split('\n')
+				buffer = lines.pop() || '' // Keep incomplete line in buffer
+
+				let eventData = ''
+				let inData = false
+
+				for (const line of lines) {
+					if (line.trim() === '') {
+						// Empty line indicates end of event
+						if (eventData && inData) {
+							try {
+								const message = JSONRPCMessageSchema.parse(
+									JSON.parse(eventData),
+								)
+								messages.push(message)
+								messageReceived = true
+
+								// Close the connection after receiving the first message
+								// to prevent hanging if the server doesn't close the stream
+								void reader.cancel().catch(() => {})
+								break
+							} catch (error) {
+								console.error('Failed to parse SSE message:', error)
+								// Continue processing other messages even if one fails
+							}
+						}
+						eventData = ''
+						inData = false
+					} else if (line.startsWith('data: ')) {
+						eventData += line.slice(6) // Remove 'data: ' prefix
+						inData = true
+					}
+					// Ignore other SSE fields like 'event:', 'id:', etc.
+				}
+
+				// Break out of the main loop if we've received a message and cancelled
+				if (messageReceived) {
+					break
+				}
+			}
+		} catch (error) {
+			console.error('SSE stream error:', error)
+			throw new Error(`SSE stream disconnected: ${error}`)
+		}
+
+		return messages
+	} else {
+		return response.json()
+	}
+}
+
+// TypeScript interfaces for API responses
+interface AuthServerConfig {
+	authorization_endpoint: string
+	token_endpoint: string
+	[key: string]: unknown
+}
+
+interface ClientRegistration {
+	client_id: string
+	client_secret?: string
+	[key: string]: unknown
+}
+
+interface AuthResult {
+	redirectTo: string
+	[key: string]: unknown
+}
+
+interface TokenResult {
+	access_token: string
+	token_type: string
+	[key: string]: unknown
+}
+
+// Helper function to generate PKCE challenge
+function generateCodeChallenge() {
+	const codeVerifier = btoa(
+		String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))),
 	)
-})
+		.replace(/\+/g, '-')
+		.replace(/\//g, '_')
+		.replace(/=/g, '')
 
-test(`MCP server provides generic error messages for missing authorization header`, async () => {
-	// Test that when a request has no authorization header,
-	// the server returns a 401 with generic error information (no error parameter)
-
-	// Make an initialization request without any authorization header
-	const mcpResponse = await makeInitRequest()
-
-	expect(
-		mcpResponse.status,
-		'🚨 MCP server should return 401 for requests without authorization',
-	).toBe(401)
-
-	// Check that the WWW-Authenticate header does NOT include specific error information
-	const wwwAuthenticate = mcpResponse.headers.get('WWW-Authenticate')
-	expect(
-		wwwAuthenticate,
-		'🚨 Response should include WWW-Authenticate header',
-	).toBeTruthy()
-
-	// Should NOT include error parameter when no authorization header is present
-	expect(
-		wwwAuthenticate,
-		'🚨 WWW-Authenticate should NOT include error parameter when no auth header',
-	).not.toContain('error=')
-
-	// Should NOT include error_description when no authorization header is present
-	expect(
-		wwwAuthenticate,
-		'🚨 WWW-Authenticate should NOT include error_description when no auth header',
-	).not.toContain('error_description=')
-
-	// Should still include the realm and resource_metadata
-	expect(
-		wwwAuthenticate,
-		'🚨 WWW-Authenticate should include Bearer realm',
-	).toContain('Bearer realm="EpicMe"')
-	expect(
-		wwwAuthenticate,
-		'🚨 WWW-Authenticate should include resource_metadata',
-	).toContain('resource_metadata=')
-})
+	return {
+		codeVerifier,
+		codeChallenge: codeVerifier, // For simplicity, using plain method
+		codeChallengeMethod: 'plain',
+	}
+}
