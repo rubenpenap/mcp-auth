@@ -1,28 +1,45 @@
+import { type AuthInfo as SDKAuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
+import { z } from 'zod'
 import { EPIC_ME_AUTH_SERVER_URL } from './client.ts'
 
-// 💯 as a bonus, create a type for the AuthInfo that extends the AuthInfo type from the SDK
-// and adds userId: string to the extra object
+export type AuthInfo = SDKAuthInfo & { extra: { userId: string } }
 
-// 💯 as a bonus, create a zod schema for the introspect response
-// - client_id: string (the client id) - client in this context refers to the app the user's using
-// - scope: string (space-separated list of scopes)
-// - sub: string (the user id)
+const introspectResponseSchema = z.object({
+	client_id: z.string(),
+	scope: z.string(),
+	sub: z.string(),
+})
 
-// 🐨 export an async function called resolveAuthInfo that accepts the request
-//   🐨 if the request has an Authorization header, get the token from it
-//      if it doesn't, return null
-//   🐨 construct a URL pointing to `/oauth/introspection` on the auth server
-//   🐨 make a POST request to the auth server with the token in the body
-//   💰 just gonna give this to you since it's not critical to your understanding of the topic to write yourself...
-//   💰 const resp = await fetch(validateUrl, {
-//      method: 'POST',
-//      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-//      body: new URLSearchParams({ token }),
-//    })
-//   🐨 if the response is not ok, return null
-//   🐨 get json object from the response
-//     💰 the properties you need are client_id, scope, and sub
-//   🐨 return the AuthInfo (💰 the sub is the userId)
+export async function resolveAuthInfo(
+	authHeader: string | null,
+): Promise<AuthInfo | null> {
+	const token = authHeader?.replace(/^Bearer\s+/i, '')
+	if (!token) return null
+
+	const validateUrl = new URL(
+		'/oauth/introspection',
+		EPIC_ME_AUTH_SERVER_URL,
+	).toString()
+	const resp = await fetch(validateUrl, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+		body: new URLSearchParams({ token }),
+	})
+	if (!resp.ok) return null
+
+	const rawData = await resp.json()
+
+	const data = introspectResponseSchema.parse(rawData)
+
+	const { sub, client_id, scope } = data
+
+	return {
+		token,
+		clientId: client_id,
+		scopes: scope.split(' '),
+		extra: { userId: sub },
+	}
+}
 
 export function handleUnauthorized(request: Request) {
 	const url = new URL('/.well-known/oauth-protected-resource/mcp', request.url)
