@@ -1,25 +1,20 @@
 import { test, expect, inject } from 'vitest'
+import { EPIC_ME_AUTH_SERVER_URL } from '../src/client.ts'
 
 const mcpServerPort = inject('mcpServerPort')
 const mcpServerUrl = `http://localhost:${mcpServerPort}`
 
-test(`The MCP server correctly proxies to the OAuth server for authorization server metadata`, async () => {
+test(`Protected resource metadata is discoverable`, async () => {
 	const resourceMetadataResponse = await fetch(
-		`${mcpServerUrl}/.well-known/oauth-authorization-server`,
+		`${mcpServerUrl}/.well-known/oauth-protected-resource/mcp`,
 	)
 	expect(
 		resourceMetadataResponse.ok,
-		'🚨 fetching authorization server metadata should succeed',
+		'🚨 fetching resource metadata should succeed',
 	).toBe(true)
 	const resourceMetadata = await resourceMetadataResponse.json()
-	expect(
-		resourceMetadata,
-		'🚨 authorization server metadata should be valid',
-	).toEqual(
-		expect.objectContaining({
-			registration_endpoint: expect.any(String),
-			authorization_endpoint: expect.any(String),
-			token_endpoint: expect.any(String),
-		}),
-	)
+	expect(resourceMetadata, '🚨 resource metadata should be valid').toEqual({
+		resource: expect.any(String),
+		authorization_servers: expect.arrayContaining([EPIC_ME_AUTH_SERVER_URL]),
+	})
 })
