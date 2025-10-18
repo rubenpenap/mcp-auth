@@ -4,7 +4,9 @@ import { EPIC_ME_AUTH_SERVER_URL } from './client.ts'
 
 export type AuthInfo = SDKAuthInfo & { extra: { userId: string } }
 
+// 💯 as a bonus, you could make this schema a discriminated union based on the "active" property
 const introspectResponseSchema = z.object({
+	// 🐨 add an "active" property to the schema that's a boolean
 	client_id: z.string(),
 	scope: z.string(),
 	sub: z.string(),
@@ -31,6 +33,8 @@ export async function resolveAuthInfo(
 
 	const data = introspectResponseSchema.parse(rawData)
 
+	// 🐨 if the "active" property is false, return null
+
 	const { sub, client_id, scope } = data
 
 	return {
@@ -45,7 +49,6 @@ export function handleUnauthorized(request: Request) {
 	const hasAuthHeader = request.headers.has('authorization')
 
 	const url = new URL('/.well-known/oauth-protected-resource/mcp', request.url)
-
 	return new Response('Unauthorized', {
 		status: 401,
 		headers: {
