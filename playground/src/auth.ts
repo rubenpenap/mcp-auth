@@ -1,16 +1,12 @@
 import { EPIC_ME_AUTH_SERVER_URL } from './client.ts'
 
-// 🐨 accept a request parameter here
-export function handleUnauthorized() {
-	// 🐨 use the request.url to construct a URL pointing to `/.well-known/oauth-protected-resource/mcp` on this server
+export function handleUnauthorized(request: Request) {
+	const url = new URL('/.well-known/oauth-protected-resource/mcp', request.url)
 
 	return new Response('Unauthorized', {
 		status: 401,
 		headers: {
-			// 🐨 the value should be comma-separated string of auth params:
-			//   - Bearer realm="EpicMe"
-			//   - resource_metadata=<the URL you constructed above>
-			'WWW-Authenticate': `Bearer realm="EpicMe"`,
+			'WWW-Authenticate': `Bearer realm="EpicMe", resource_metadata=${url.toString()}`,
 		},
 	})
 }
