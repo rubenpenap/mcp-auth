@@ -5,8 +5,7 @@ import {
 	handleOAuthAuthorizationServerRequest,
 	handleOAuthProtectedResourceRequest,
 	handleUnauthorized,
-	// 💰 you'll need this:
-	// resolveAuthInfo,
+	resolveAuthInfo,
 } from './auth.ts'
 import { getClient } from './client.ts'
 import { initializePrompts } from './prompts.ts'
@@ -72,8 +71,10 @@ export default {
 			}
 
 			if (url.pathname === '/mcp') {
-				const hasAuthHeader = request.headers.has('authorization')
-				if (!hasAuthHeader) return handleUnauthorized(request)
+				const authInfo = await resolveAuthInfo(
+					request.headers.get('authorization'),
+				)
+				if (!authInfo) return handleUnauthorized(request)
 
 				const mcp = EpicMeMCP.serve('/mcp', {
 					binding: 'EPIC_ME_MCP_OBJECT',
