@@ -4,8 +4,7 @@ import { McpAgent } from 'agents/mcp'
 import {
 	handleOAuthAuthorizationServerRequest,
 	handleOAuthProtectedResourceRequest,
-	// 💰 you'll need this:
-	// handleUnauthorized
+	handleUnauthorized,
 } from './auth.ts'
 import { getClient } from './client.ts'
 import { initializePrompts } from './prompts.ts'
@@ -71,8 +70,8 @@ export default {
 			}
 
 			if (url.pathname === '/mcp') {
-				// 🐨 check if the request has an Authorization header
-				// 🐨 if it does, call and return the result of handleUnauthorized
+				const hasAuthHeader = request.headers.has('authorization')
+				if (!hasAuthHeader) return handleUnauthorized()
 
 				const mcp = EpicMeMCP.serve('/mcp', {
 					binding: 'EPIC_ME_MCP_OBJECT',
