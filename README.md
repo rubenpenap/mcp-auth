@@ -1,3 +1,12 @@
+> ## 🚨 Important Notice
+>
+> This repository is a clone of the
+> [MCP Auth](https://www.epicai.pro/workshops/day-7-8-mcp-auth)
+> by EpicAI. It has been published solely to document my GitHub activity
+> and for personal educational purposes.
+>
+> **Note:** This is not an official fork or a maintained derivative of the
+> original project.
 <div>
   <h1 align="center"><a href="https://www.epicweb.dev/workshops">MCP Auth 🔐</a></h1>
   <strong>
