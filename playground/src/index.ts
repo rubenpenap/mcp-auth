@@ -3,8 +3,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { McpAgent } from 'agents/mcp'
 import {
 	handleOAuthAuthorizationServerRequest,
-	// 💰 you'll need this:
-	// handleOAuthProtectedResourceRequest,
+	handleOAuthProtectedResourceRequest,
 } from './auth.ts'
 import { getClient } from './client.ts'
 import { initializePrompts } from './prompts.ts'
@@ -65,8 +64,9 @@ export default {
 				return handleOAuthAuthorizationServerRequest()
 			}
 
-			// 🐨 if the url.pathname is '/.well-known/oauth-protected-resource/mcp'
-			// then call and return the result of handleOAuthProtectedResourceRequest
+			if (url.pathname === '/.well-known/oauth-protected-resource/mcp') {
+				return handleOAuthProtectedResourceRequest(request)
+			}
 
 			if (url.pathname === '/mcp') {
 				const mcp = EpicMeMCP.serve('/mcp', {
