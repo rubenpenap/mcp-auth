@@ -1,8 +1,7 @@
 import { type DBClient } from '@epic-web/epicme-db-client'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { McpAgent } from 'agents/mcp'
-// 💰 you'll need this:
-// import { handleOAuthAuthorizationServerRequest } from './auth.ts'
+import { handleOAuthAuthorizationServerRequest } from './auth.ts'
 import { getClient } from './client.ts'
 import { initializePrompts } from './prompts.ts'
 import { initializeResources } from './resources.ts'
@@ -57,8 +56,9 @@ export default {
 		handler: async (request, env, ctx) => {
 			const url = new URL(request.url)
 
-			// 🐨 if the url.pathname is '/.well-known/oauth-authorization-server'
-			// then call and return the result of handleOAuthAuthorizationServerRequest
+			if (url.pathname === '/.well-known/oauth-authorization-server') {
+				return handleOAuthAuthorizationServerRequest()
+			}
 
 			if (url.pathname === '/mcp') {
 				const mcp = EpicMeMCP.serve('/mcp', {
