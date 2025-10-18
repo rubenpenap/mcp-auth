@@ -1,20 +1,24 @@
 import { test, expect, inject } from 'vitest'
-import { EPIC_ME_AUTH_SERVER_URL } from '../src/client.ts'
 
 const mcpServerPort = inject('mcpServerPort')
 const mcpServerUrl = `http://localhost:${mcpServerPort}`
 
-test(`Protected resource metadata is discoverable`, async () => {
-	const resourceMetadataResponse = await fetch(
-		`${mcpServerUrl}/.well-known/oauth-protected-resource/mcp`,
-	)
+test(`Missing Authorization header returns 401 with WWW-Authenticate`, async () => {
+	const response = await fetch(`${mcpServerUrl}/mcp`)
+
 	expect(
-		resourceMetadataResponse.ok,
-		'🚨 fetching resource metadata should succeed',
-	).toBe(true)
-	const resourceMetadata = await resourceMetadataResponse.json()
-	expect(resourceMetadata, '🚨 resource metadata should be valid').toEqual({
-		resource: expect.any(String),
-		authorization_servers: expect.arrayContaining([EPIC_ME_AUTH_SERVER_URL]),
-	})
+		response.status,
+		'🚨 Request without Authorization header should return 401 Unauthorized',
+	).toBe(401)
+
+	const wwwAuthenticate = response.headers.get('WWW-Authenticate')
+	expect(
+		wwwAuthenticate,
+		'🚨 401 response should include WWW-Authenticate header',
+	).toBeTruthy()
+
+	expect(
+		wwwAuthenticate,
+		'🚨 WWW-Authenticate header should specify Bearer realm="EpicMe"',
+	).toBe('Bearer realm="EpicMe"')
 })

@@ -1,5 +1,13 @@
 import { EPIC_ME_AUTH_SERVER_URL } from './client.ts'
 
+// 🐨 export an async function called handleUnauthorized
+// 🐨 it should return a 401 Unauthorized response with a 'WWW-Authenticate' header
+//   🐨 the value of the 'WWW-Authenticate' header should be 'Bearer realm="EpicMe"'
+
+/**
+ * This retrieves the protected resource configuration from the EpicMe server.
+ * This is how the client knows where to request authorization from.
+ */
 export async function handleOAuthProtectedResourceRequest(request: Request) {
 	const resourceServerUrl = new URL('/mcp', request.url)
 
